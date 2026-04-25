@@ -25,8 +25,6 @@ let lastPairingCode = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const msgStore = {};
-
 // Railway requires an HTTP server
 const app = express();
 app.use(express.json());
@@ -92,82 +90,76 @@ const filterGamesBySubscriptions = (games, teamsStr) => {
   );
 };
 
+const SEP = "─".repeat(28);
+
 const buildReminderMessage = (games, dateLabel, sectionLabel) => {
-  let msg = `🏏 *${sectionLabel}*\n📅 *${dateLabel}*\n\n`;
+  const isPersonal = sectionLabel.includes("Your");
+  const header = isPersonal
+    ? `🏏 *Your Games — Shaheen CC*`
+    : `📋 *All Shaheen Games*`;
+
+  let msg = `${header}\n📅 *${dateLabel}*\n${SEP}\n\n`;
+
   games.forEach((game) => {
     const stripped = game.DateAndTime.replace(" ", "T").replace(
       /Z$|[+-]\d{2}:\d{2}$/,
       "",
     );
-    const dateStr = stripped + getOffset(game.DateAndTime);
-    const time = new Date(dateStr).toLocaleTimeString("en-CA", {
-      timeZone: "America/Edmonton",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    msg += `*Format: ${game.Format}*`;
-    if (game.IsUmpiring) msg += " 🟡 Umpiring";
+    const time = new Date(stripped + getOffset(game.DateAndTime))
+      .toLocaleTimeString("en-CA", {
+        timeZone: "America/Edmonton",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+    msg += `*${game.Format}*`;
+    if (game.IsUmpiring) msg += `  🟡 *Umpiring*`;
     msg += `\n${game.GameDetails}\n`;
-    msg += `📍 ${game.Venue}\n⏰ ${time}\n\n`;
+    msg += `📍 ${game.Venue}   ⏰ ${time}\n\n`;
   });
-  msg += "_To unsubscribe: shaheenccyyc.com/unsubscribe_";
+
+  msg += `${SEP}\n_shaheenccyyc.com/unsubscribe_`;
   return msg;
 };
 
 const buildTeaserMessage = (games, label) => {
-  const playingGames = games.filter((g) => !g.IsUmpiring);
-  const umpiringGames = games.filter((g) => g.IsUmpiring);
-  const lines = [];
-  if (playingGames.length)
-    lines.push(
-      `🏏 *${playingGames.length} game${playingGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
-    );
-  if (umpiringGames.length)
-    lines.push(
-      `🟡 *${umpiringGames.length} umpiring${umpiringGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
-    );
-  return `*Shaheen Cricket Club* 🏏\n*${label}*\n\n${lines.join("\n")}`;
+  const isPersonal = label === "Your Teams";
+  const playing = games.filter((g) => !g.IsUmpiring);
+  const umpiring = games.filter((g) => g.IsUmpiring);
+
+  const header = isPersonal
+    ? `🏏 *Shaheen CC — Your Games Tomorrow*`
+    : `📋 *Shaheen CC — Full Schedule Tomorrow*`;
+
+  let msg = `${header}\n${SEP}\n\n`;
+  if (playing.length)
+    msg += `🏏 *${playing.length} game${playing.length > 1 ? "s" : ""}* — be ready!\n`;
+  if (umpiring.length)
+    msg += `🟡 *${umpiring.length} umpiring${umpiring.length > 1 ? "s" : ""}* — be ready!\n`;
+  msg += `\n${SEP}`;
+  return msg;
 };
 
 const sendDailyReminders = async () => {
-  if (!isReady) {
-    console.log("WhatsApp not ready — skipping reminders");
-    return;
-  }
+  if (!isReady) return;
   try {
     const { data } = await axios.get(
       `${API_BASE}/api/whatsapp/today-data?key=${API_KEY}`,
     );
     const { games, subscribers, dateLabel } = data;
-
-    if (!games.length) {
-      console.log("No games today — no reminders sent");
-      return;
-    }
-
-    console.log(
-      `Sending daily reminders to ${subscribers.length} subscribers...`,
-    );
+    if (!games.length) return;
 
     for (const sub of subscribers) {
       const jid = toJid(sub.phone);
       const myGames = filterGamesBySubscriptions(games, sub.teams);
-
       try {
-        // Daily2: subscriber's teams only
         if (myGames.length > 0) {
           await sock.sendMessage(jid, {
-            text: buildReminderMessage(
-              myGames,
-              dateLabel,
-              "Your Teams — Shaheen CC",
-            ),
+            text: buildReminderMessage(myGames, dateLabel, "Your Teams — Shaheen CC"),
           });
           console.log(`  ✓ Daily (your teams) sent to ${sub.phone}`);
         }
-
-        // Daily1: all games, only if toggle is on
         if (sub.all_games && games.length > 0) {
           await sock.sendMessage(jid, {
             text: buildReminderMessage(games, dateLabel, "All Shaheen Games"),
@@ -179,9 +171,7 @@ const sendDailyReminders = async () => {
       }
       await sleep(1000);
     }
-  } catch (e) {
-    console.error("Failed to fetch today data:", e.message);
-  }
+  } catch {}
 };
 
 const connect = async () => {
@@ -194,18 +184,9 @@ const connect = async () => {
     printQRInTerminal: false,
     logger: silentLogger,
     browser: Browsers.macOS("Chrome"),
-    getMessage: async (key) => msgStore[key.id],
   });
 
   sock.ev.on("creds.update", saveCreds);
-
-  sock.ev.on("messages.upsert", ({ messages }) => {
-    for (const msg of messages) {
-      if (msg.key?.id && msg.message) {
-        msgStore[msg.key.id] = msg.message;
-      }
-    }
-  });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -223,7 +204,6 @@ const connect = async () => {
     }
 
     if (connection === "open") {
-      console.log("✅ WhatsApp connected");
       isReady = true;
     }
 
@@ -232,13 +212,9 @@ const connect = async () => {
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log(`❌ Disconnected (${code})`);
       if (
-        code === DisconnectReason.loggedOut ||
-        code === DisconnectReason.connectionReplaced
+        code !== DisconnectReason.loggedOut &&
+        code !== DisconnectReason.connectionReplaced
       ) {
-        console.log(
-          "Session ended permanently — close WhatsApp Web in any browsers and restart the bot.",
-        );
-      } else {
         setTimeout(connect, 5000);
       }
     }
@@ -345,8 +321,6 @@ const sendTeaserMessage = async () => {
       month: "2-digit",
       day: "2-digit",
     });
-    console.log(`Teaser checking games for: ${dateStr}`);
-
     const { data } = await axios.get(
       `${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${dateStr}`,
     );
@@ -377,10 +351,7 @@ const sendTeaserMessage = async () => {
       }
       await sleep(1000);
     }
-    console.log(`Teaser sent to ${data.subscribers.length} subscribers`);
-  } catch (e) {
-    console.error("Teaser fetch failed:", e.message);
-  }
+  } catch {}
 };
 
 cron.schedule("00 07 * * *", sendDailyReminders, {
@@ -394,4 +365,3 @@ cron.schedule("00 20 * * *", sendTeaserMessage, {
 setInterval(sendPendingWelcomes, 60_000);
 
 connect();
-console.log("WhatsApp bot starting...");
