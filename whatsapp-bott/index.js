@@ -62,7 +62,9 @@ const buildReminderMessage = (games, dateLabel) => {
   games.forEach((game) => {
     const normalized = game.DateAndTime.replace(" ", "T");
     const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(normalized);
-    const dateStr = hasTimezone ? normalized : normalized + getOffset(game.DateAndTime);
+    const dateStr = hasTimezone
+      ? normalized
+      : normalized + getOffset(game.DateAndTime);
     const time = new Date(dateStr).toLocaleTimeString("en-CA", {
       timeZone: "America/Edmonton",
       hour: "2-digit",
@@ -258,7 +260,7 @@ const sendTeaserMessage = async () => {
   }
 };
 
-cron.schedule("00 07 * * *", sendDailyReminders, {
+cron.schedule("43 09 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
