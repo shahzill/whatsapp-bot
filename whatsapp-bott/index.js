@@ -22,7 +22,6 @@ let sock;
 let isReady = false;
 let pairingRequested = false;
 let lastPairingCode = null;
-const msgStore = {};
 
 // Railway requires an HTTP server
 const app = express();
@@ -182,18 +181,9 @@ const connect = async () => {
     printQRInTerminal: false,
     logger: silentLogger,
     browser: Browsers.macOS("Chrome"),
-    getMessage: async (key) => msgStore[key.id],
   });
 
   sock.ev.on("creds.update", saveCreds);
-
-  sock.ev.on("messages.upsert", ({ messages }) => {
-    for (const msg of messages) {
-      if (msg.key?.id && msg.message) {
-        msgStore[msg.key.id] = msg.message;
-      }
-    }
-  });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
