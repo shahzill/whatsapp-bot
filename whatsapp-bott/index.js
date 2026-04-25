@@ -22,8 +22,6 @@ let sock;
 let isReady = false;
 let pairingRequested = false;
 let lastPairingCode = null;
-// Maps @lid JID -> @s.whatsapp.net JID so STOP from multi-device accounts can be resolved
-const lidToPhoneJid = {};
 
 // Railway requires an HTTP server
 const app = express();
@@ -107,7 +105,7 @@ const buildReminderMessage = (games, dateLabel, sectionLabel) => {
     msg += `\n${game.GameDetails}\n`;
     msg += `📍 ${game.Venue}\n⏰ ${time}\n\n`;
   });
-  msg += "_Reply STOP to unsubscribe_";
+  msg += "_To unsubscribe: shaheenccyyc.com/unsubscribe_";
   return msg;
 };
 
@@ -183,19 +181,9 @@ const connect = async () => {
     printQRInTerminal: false,
     logger: silentLogger,
     browser: Browsers.macOS("Chrome"),
-    getMessage: async () => ({ conversation: "" }),
   });
 
   sock.ev.on("creds.update", saveCreds);
-
-  // Build LID → phone JID map so STOP messages from @lid senders can be resolved
-  sock.ev.on("contacts.upsert", (contacts) => {
-    for (const c of contacts) {
-      if (c.lid && c.id) {
-        lidToPhoneJid[c.lid] = c.id;
-      }
-    }
-  });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -234,35 +222,7 @@ const connect = async () => {
     }
   });
 
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe) continue;
-      const body =
-        msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-      if (body.trim().toUpperCase() !== "STOP") continue;
 
-      const jid = msg.key.remoteJid;
-      // @lid is a WhatsApp Linked ID, not a phone — resolve to phone JID via contact map
-      const resolvedJid = jid.endsWith("@lid")
-        ? (lidToPhoneJid[jid] || null)
-        : jid;
-      if (!resolvedJid || resolvedJid.endsWith("@lid")) {
-        console.log("[STOP] Could not resolve LID to phone JID:", jid);
-        continue;
-      }
-      const phone = "+" + resolvedJid.replace("@s.whatsapp.net", "").split(":")[0];
-      console.log("[STOP] jid:", jid, "→ resolvedJid:", resolvedJid, "→ phone:", phone);
-      const unsubRes = await axios
-        .post(`${API_BASE}/api/whatsapp/unsubscribe`, { phone })
-        .catch((e) => { console.log("[STOP] unsubscribe error:", e.response?.data || e.message); });
-      console.log("[STOP] unsubscribe response:", unsubRes?.data);
-      await sock
-        .sendMessage(jid, {
-          text: "You've been unsubscribed from Shaheen Cricket Club reminders.",
-        })
-        .catch(() => {});
-    }
-  });
 };
 
 const sendPendingWelcomes = async () => {
@@ -288,7 +248,7 @@ const sendPendingWelcomes = async () => {
       const jid = toJid(sub.phone);
       try {
         await sock.sendMessage(jid, {
-          text: `✅ You're subscribed to Shaheen Cricket Club game reminders! You'll get a message on match days.\n\nReply *STOP* at any time to unsubscribe.`,
+          text: `✅ You're subscribed to Shaheen Cricket Club game reminders! You'll get a message on match days.\n\nTo unsubscribe: shaheenccyyc.com/unsubscribe`,
         });
         await axios.post(`${API_BASE}/api/whatsapp/mark-welcomed`, {
           phone: sub.phone,
