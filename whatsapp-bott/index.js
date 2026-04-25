@@ -230,7 +230,7 @@ const connect = async () => {
       if (body.trim().toUpperCase() !== "STOP") continue;
 
       const jid = msg.key.remoteJid;
-      const phone = jid.replace("@s.whatsapp.net", "");
+      const phone = "+" + jid.replace("@s.whatsapp.net", "");
       await axios
         .post(`${API_BASE}/api/whatsapp/unsubscribe`, { phone })
         .catch(() => {});
