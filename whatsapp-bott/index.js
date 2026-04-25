@@ -25,7 +25,6 @@ let lastPairingCode = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Railway requires an HTTP server
 const app = express();
 app.use(express.json());
 app.get("/", (_, res) =>
@@ -59,15 +58,11 @@ const getOffset = (dateStr) => {
   return month >= 4 && month <= 10 ? "-06:00" : "-07:00";
 };
 
-// Convert phone to WhatsApp JID
 const toJid = (phone) => {
   const cleaned = phone.replace(/\D/g, "");
   return `${cleaned.length === 10 ? `1${cleaned}` : cleaned}@s.whatsapp.net`;
 };
 
-// Filter games to only those matching the subscriber's chosen team|format combos.
-// e.g. teamsStr = "Warriors|T20,Mavericks|35Overs"
-// Empty teamsStr = all games (backwards compat for old subscribers).
 const filterGamesBySubscriptions = (games, teamsStr) => {
   if (!teamsStr || teamsStr.trim() === "") return games;
   const combos = teamsStr
@@ -84,42 +79,63 @@ const filterGamesBySubscriptions = (games, teamsStr) => {
           ? fmtLower.includes("t20")
           : fmt === "35overs"
             ? fmtLower.includes("35")
-            : /* weeknight */ fmtLower.includes("weeknight");
+            : fmtLower.includes("weeknight");
       return teamMatch && fmtMatch;
     }),
   );
 };
 
-const SEP = "─".repeat(28);
+// Extract just "Team A vs Team B" from the verbose GameDetails string
+const extractMatchup = (gameDetails) => {
+  // GameDetails looks like "Shaheen Warriors vs Calgary Cougars playing a T20 game at 18:00 in Shouldice"
+  const match = gameDetails.match(/^(.+?)\s+playing\s+/i);
+  return match ? match[1].trim() : gameDetails;
+};
+
+const formatIcon = (format) => {
+  const f = format.toLowerCase();
+  if (f.includes("t20")) return "⚡";
+  if (f.includes("35")) return "🏏";
+  if (f.includes("weeknight")) return "🌙";
+  return "🏏";
+};
 
 const buildReminderMessage = (games, dateLabel, sectionLabel) => {
   const isPersonal = sectionLabel.includes("Your");
+
   const header = isPersonal
-    ? `🏏 *Your Games — Shaheen CC*`
-    : `📋 *All Shaheen Games*`;
+    ? `🏏 *Shaheen CC — Match Day Reminder*`
+    : `📋 *Shaheen CC — Full Schedule*`;
 
-  let msg = `${header}\n📅 *${dateLabel}*\n${SEP}\n\n`;
+  let msg = `${header}\n📅 ${dateLabel}\n\n`;
 
-  games.forEach((game) => {
+  games.forEach((game, i) => {
     const stripped = game.DateAndTime.replace(" ", "T").replace(
       /Z$|[+-]\d{2}:\d{2}$/,
       "",
     );
-    const time = new Date(stripped + getOffset(game.DateAndTime))
-      .toLocaleTimeString("en-CA", {
-        timeZone: "America/Edmonton",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
+    const time = new Date(
+      stripped + getOffset(game.DateAndTime),
+    ).toLocaleTimeString("en-CA", {
+      timeZone: "America/Edmonton",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
 
-    msg += `*${game.Format}*`;
-    if (game.IsUmpiring) msg += `  🟡 *Umpiring*`;
-    msg += `\n${game.GameDetails}\n`;
-    msg += `📍 ${game.Venue}   ⏰ ${time}\n\n`;
+    const icon = formatIcon(game.Format);
+    const matchup = extractMatchup(game.GameDetails);
+
+    msg += `${icon} *${game.Format}*`;
+    if (game.IsUmpiring) msg += `  🟡 *(Umpiring)*`;
+    msg += `\n`;
+    msg += `${matchup}\n`;
+    msg += `📍 ${game.Venue}  ·  ⏰ ${time}\n`;
+
+    if (i < games.length - 1) msg += `\n`;
   });
 
-  msg += `${SEP}\n_shaheenccyyc.com/unsubscribe_`;
+  msg += `\n_Unsubscribe: shaheenccyyc.com/unsubscribe_`;
   return msg;
 };
 
@@ -129,15 +145,21 @@ const buildTeaserMessage = (games, label) => {
   const umpiring = games.filter((g) => g.IsUmpiring);
 
   const header = isPersonal
-    ? `🏏 *Shaheen CC — Your Games Tomorrow*`
-    : `📋 *Shaheen CC — Full Schedule Tomorrow*`;
+    ? `🏏 *Shaheen CC — You've Got a Game Tomorrow!*`
+    : `📋 *Shaheen CC — Games Tomorrow*`;
 
-  let msg = `${header}\n${SEP}\n\n`;
-  if (playing.length)
-    msg += `🏏 *${playing.length} game${playing.length > 1 ? "s" : ""}* — be ready!\n`;
-  if (umpiring.length)
-    msg += `🟡 *${umpiring.length} umpiring${umpiring.length > 1 ? "s" : ""}* — be ready!\n`;
-  msg += `\n${SEP}`;
+  let msg = `${header}\n\n`;
+
+  if (playing.length) {
+    msg += `🏏 *${playing.length} game${playing.length > 1 ? "s" : ""}* scheduled`;
+    if (isPersonal) msg += ` for your team${playing.length > 1 ? "s" : ""}`;
+    msg += `\n`;
+  }
+  if (umpiring.length) {
+    msg += `🟡 *${umpiring.length} umpiring assignment${umpiring.length > 1 ? "s" : ""}*\n`;
+  }
+
+  msg += `\nFull details will be sent tomorrow morning. Good luck! 🙌`;
   return msg;
 };
 
@@ -156,7 +178,11 @@ const sendDailyReminders = async () => {
       try {
         if (myGames.length > 0) {
           await sock.sendMessage(jid, {
-            text: buildReminderMessage(myGames, dateLabel, "Your Teams — Shaheen CC"),
+            text: buildReminderMessage(
+              myGames,
+              dateLabel,
+              "Your Teams — Shaheen CC",
+            ),
           });
           console.log(`  ✓ Daily (your teams) sent to ${sub.phone}`);
         }
@@ -184,6 +210,9 @@ const connect = async () => {
     printQRInTerminal: false,
     logger: silentLogger,
     browser: Browsers.macOS("Chrome"),
+    getMessage: async (key) => {
+      return { conversation: "" };
+    },
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -253,14 +282,13 @@ const sendPendingWelcomes = async () => {
       const jid = toJid(sub.phone);
       try {
         await sock.sendMessage(jid, {
-          text: `✅ You're subscribed to Shaheen Cricket Club game reminders! You'll get a message on match days.\n\nTo unsubscribe: shaheenccyyc.com/unsubscribe`,
+          text: `✅ *Welcome to Shaheen CC Game Reminders!*\n\nYou'll receive a message on the morning of each match day with your game details.\n\nTo unsubscribe anytime: shaheenccyyc.com/unsubscribe`,
         });
         await axios.post(`${API_BASE}/api/whatsapp/mark-welcomed`, {
           phone: sub.phone,
           key: API_KEY,
         });
 
-        // Today's games for this subscriber
         const todayMine = filterGamesBySubscriptions(
           todayData.games,
           sub.teams,
@@ -284,7 +312,6 @@ const sendPendingWelcomes = async () => {
           });
         }
 
-        // Tomorrow's teaser for this subscriber
         const tomorrowMine = filterGamesBySubscriptions(
           tomorrowData.games,
           sub.teams,
@@ -333,14 +360,11 @@ const sendTeaserMessage = async () => {
       const myGames = filterGamesBySubscriptions(games, sub.teams);
 
       try {
-        // Teaser2: subscriber's teams only
         if (myGames.length > 0) {
           await sock.sendMessage(jid, {
             text: buildTeaserMessage(myGames, "Your Teams"),
           });
         }
-
-        // Teaser1: all games, only if toggle is on
         if (sub.all_games && games.length > 0) {
           await sock.sendMessage(jid, {
             text: buildTeaserMessage(games, "All Shaheen Games"),
