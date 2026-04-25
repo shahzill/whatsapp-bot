@@ -249,6 +249,19 @@ const sendPendingWelcomes = async () => {
     const { data: pending } = await axios.get(
       `${API_BASE}/api/whatsapp/pending-welcome?key=${API_KEY}`,
     );
+    if (!pending.length) return;
+
+    const toDateStr = (offset) =>
+      new Date(Date.now() + offset * 24 * 60 * 60 * 1000).toLocaleDateString(
+        "en-CA",
+        { timeZone: "America/Edmonton", year: "numeric", month: "2-digit", day: "2-digit" },
+      );
+
+    const [{ data: todayData }, { data: tomorrowData }] = await Promise.all([
+      axios.get(`${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(0)}`),
+      axios.get(`${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(1)}`),
+    ]);
+
     for (const sub of pending) {
       const jid = toJid(sub.phone);
       try {
@@ -259,6 +272,33 @@ const sendPendingWelcomes = async () => {
           phone: sub.phone,
           key: API_KEY,
         });
+
+        // Today's games for this subscriber
+        const todayMine = filterGamesBySubscriptions(todayData.games, sub.teams);
+        if (todayMine.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildReminderMessage(todayMine, todayData.dateLabel, "Your Teams — Shaheen CC"),
+          });
+        }
+        if (sub.all_games && todayData.games.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildReminderMessage(todayData.games, todayData.dateLabel, "All Shaheen Games"),
+          });
+        }
+
+        // Tomorrow's teaser for this subscriber
+        const tomorrowMine = filterGamesBySubscriptions(tomorrowData.games, sub.teams);
+        if (tomorrowMine.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildTeaserMessage(tomorrowMine, "Your Teams"),
+          });
+        }
+        if (sub.all_games && tomorrowData.games.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildTeaserMessage(tomorrowData.games, "All Shaheen Games"),
+          });
+        }
+
         console.log(`  ✓ Welcomed ${sub.phone}`);
       } catch (e) {
         console.error(`  ✗ Failed to welcome ${sub.phone}:`, e.message);
