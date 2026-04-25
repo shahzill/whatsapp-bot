@@ -94,10 +94,11 @@ const buildReminderMessage = (games, dateLabel, sectionLabel, name) => {
   const isPersonal = sectionLabel.includes("Your");
 
   const header = isPersonal
-    ? `🏏 *Schedule for ${name || "Your Team"}*`
-    : `📋 *Full Shaheen Schedule*`;
+    ? `🏏 *Shaheen CC — Match Day Reminder*`
+    : `📋 *Shaheen CC — Full Schedule*`;
 
   let msg = `${header}\n`;
+  if (name && isPersonal) msg += `_Schedule for ${name}_\n`;
   msg += `📅 ${dateLabel}\n\n`;
 
   games.forEach((game, i) => {
@@ -136,10 +137,11 @@ const buildTeaserMessage = (games, label, name) => {
   const umpiring = games.filter((g) => g.IsUmpiring);
 
   const header = isPersonal
-    ? `🏏 *${name || "Your Team"} — Game Tomorrow!*`
+    ? `🏏 *Shaheen CC — Game Tomorrow!*`
     : `📋 *Shaheen CC — Games Tomorrow*`;
 
   let msg = `${header}\n`;
+  if (name && isPersonal) msg += `_Schedule for ${name}_\n`;
   msg += `\n`;
 
   if (playing.length) {
@@ -168,7 +170,7 @@ const sendDailyReminders = async () => {
     for (const sub of subscribers) {
       const jid = toJid(sub.phone);
       const myGames = filterGamesBySubscriptions(games, sub.teams);
-      const name = sub.name || null;
+      const name = sub.name && sub.name.trim() ? sub.name.trim() : "Your Team";
       try {
         if (myGames.length > 0) {
           await sock.sendMessage(jid, {
@@ -280,10 +282,11 @@ const sendPendingWelcomes = async () => {
 
     for (const sub of pending) {
       const jid = toJid(sub.phone);
-      const name = sub.name || null;
+      const name = sub.name && sub.name.trim() ? sub.name.trim() : "Your Team";
       try {
         // Welcome — only place we say "Hi"
-        const greeting = name ? `Hi ${name}! 👋\n\n` : "";
+        const greeting =
+          name && name !== "Your Team" ? `Hi ${name}! 👋\n\n` : "";
         await sock.sendMessage(jid, {
           text: `${greeting}✅ *Welcome to Shaheen CC Game Reminders!*\n\nYou'll receive a message on the morning of each match day with your game details.\n\nTo unsubscribe anytime: shaheenccyyc.com/unsubscribe`,
         });
@@ -367,7 +370,7 @@ const sendTeaserMessage = async () => {
     for (const sub of data.subscribers) {
       const jid = toJid(sub.phone);
       const myGames = filterGamesBySubscriptions(games, sub.teams);
-      const name = sub.name || null;
+      const name = sub.name && sub.name.trim() ? sub.name.trim() : "Your Team";
 
       try {
         if (myGames.length > 0) {
