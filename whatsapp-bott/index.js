@@ -60,11 +60,11 @@ const getOffset = (dateStr) => {
 const buildReminderMessage = (games, dateLabel) => {
   let msg = `🏏 *Shaheen Cricket Club*\n📅 *${dateLabel}*\n\n`;
   games.forEach((game) => {
-    const normalized = game.DateAndTime.replace(" ", "T");
-    const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(normalized);
-    const dateStr = hasTimezone
-      ? normalized
-      : normalized + getOffset(game.DateAndTime);
+    const stripped = game.DateAndTime.replace(" ", "T").replace(
+      /Z$|[+-]\d{2}:\d{2}$/,
+      "",
+    );
+    const dateStr = stripped + getOffset(game.DateAndTime);
     const time = new Date(dateStr).toLocaleTimeString("en-CA", {
       timeZone: "America/Edmonton",
       hour: "2-digit",
@@ -260,7 +260,7 @@ const sendTeaserMessage = async () => {
   }
 };
 
-cron.schedule("43 09 * * *", sendDailyReminders, {
+cron.schedule("47 09 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
