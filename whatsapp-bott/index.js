@@ -24,9 +24,13 @@ let isReady = false;
 let pairingRequested = false;
 let lastPairingCode = null;
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const STORE_PATH = "./wa_msg_store.json";
 let msgStore = {};
-try { msgStore = JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")); } catch {}
+try {
+  msgStore = JSON.parse(fs.readFileSync(STORE_PATH, "utf-8"));
+} catch {}
 
 let saveTimer = null;
 const scheduleSave = () => {
@@ -34,8 +38,11 @@ const scheduleSave = () => {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     const keys = Object.keys(msgStore);
-    if (keys.length > 1000) keys.slice(0, keys.length - 1000).forEach((k) => delete msgStore[k]);
-    try { fs.writeFileSync(STORE_PATH, JSON.stringify(msgStore)); } catch {}
+    if (keys.length > 1000)
+      keys.slice(0, keys.length - 1000).forEach((k) => delete msgStore[k]);
+    try {
+      fs.writeFileSync(STORE_PATH, JSON.stringify(msgStore));
+    } catch {}
   }, 2000);
 };
 
@@ -94,11 +101,13 @@ const filterGamesBySubscriptions = (games, teamsStr) => {
       const teamMatch = g.GameDetails.toLowerCase().includes(team);
       const fmtLower = g.Format.toLowerCase();
       const fmtMatch =
-        fmt === "t20"       ? fmtLower.includes("t20") :
-        fmt === "35overs"   ? fmtLower.includes("35") :
-        /* weeknight */       fmtLower.includes("weeknight");
+        fmt === "t20"
+          ? fmtLower.includes("t20")
+          : fmt === "35overs"
+            ? fmtLower.includes("35")
+            : /* weeknight */ fmtLower.includes("weeknight");
       return teamMatch && fmtMatch;
-    })
+    }),
   );
 };
 
@@ -156,7 +165,9 @@ const sendDailyReminders = async () => {
       return;
     }
 
-    console.log(`Sending daily reminders to ${subscribers.length} subscribers...`);
+    console.log(
+      `Sending daily reminders to ${subscribers.length} subscribers...`,
+    );
 
     for (const sub of subscribers) {
       const jid = toJid(sub.phone);
@@ -166,7 +177,11 @@ const sendDailyReminders = async () => {
         // Daily2: subscriber's teams only
         if (myGames.length > 0) {
           await sock.sendMessage(jid, {
-            text: buildReminderMessage(myGames, dateLabel, "Your Teams — Shaheen CC"),
+            text: buildReminderMessage(
+              myGames,
+              dateLabel,
+              "Your Teams — Shaheen CC",
+            ),
           });
           console.log(`  ✓ Daily (your teams) sent to ${sub.phone}`);
         }
@@ -181,6 +196,7 @@ const sendDailyReminders = async () => {
       } catch (e) {
         console.error(`  ✗ Failed to send to ${sub.phone}:`, e.message);
       }
+      await sleep(1000);
     }
   } catch (e) {
     console.error("Failed to fetch today data:", e.message);
@@ -247,8 +263,6 @@ const connect = async () => {
       }
     }
   });
-
-
 };
 
 const sendPendingWelcomes = async () => {
@@ -262,12 +276,21 @@ const sendPendingWelcomes = async () => {
     const toDateStr = (offset) =>
       new Date(Date.now() + offset * 24 * 60 * 60 * 1000).toLocaleDateString(
         "en-CA",
-        { timeZone: "America/Edmonton", year: "numeric", month: "2-digit", day: "2-digit" },
+        {
+          timeZone: "America/Edmonton",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        },
       );
 
     const [{ data: todayData }, { data: tomorrowData }] = await Promise.all([
-      axios.get(`${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(0)}`),
-      axios.get(`${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(1)}`),
+      axios.get(
+        `${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(0)}`,
+      ),
+      axios.get(
+        `${API_BASE}/api/whatsapp/today-data?key=${API_KEY}&date=${toDateStr(1)}`,
+      ),
     ]);
 
     for (const sub of pending) {
@@ -282,20 +305,34 @@ const sendPendingWelcomes = async () => {
         });
 
         // Today's games for this subscriber
-        const todayMine = filterGamesBySubscriptions(todayData.games, sub.teams);
+        const todayMine = filterGamesBySubscriptions(
+          todayData.games,
+          sub.teams,
+        );
         if (todayMine.length > 0) {
           await sock.sendMessage(jid, {
-            text: buildReminderMessage(todayMine, todayData.dateLabel, "Your Teams — Shaheen CC"),
+            text: buildReminderMessage(
+              todayMine,
+              todayData.dateLabel,
+              "Your Teams — Shaheen CC",
+            ),
           });
         }
         if (sub.all_games && todayData.games.length > 0) {
           await sock.sendMessage(jid, {
-            text: buildReminderMessage(todayData.games, todayData.dateLabel, "All Shaheen Games"),
+            text: buildReminderMessage(
+              todayData.games,
+              todayData.dateLabel,
+              "All Shaheen Games",
+            ),
           });
         }
 
         // Tomorrow's teaser for this subscriber
-        const tomorrowMine = filterGamesBySubscriptions(tomorrowData.games, sub.teams);
+        const tomorrowMine = filterGamesBySubscriptions(
+          tomorrowData.games,
+          sub.teams,
+        );
         if (tomorrowMine.length > 0) {
           await sock.sendMessage(jid, {
             text: buildTeaserMessage(tomorrowMine, "Your Teams"),
@@ -311,6 +348,7 @@ const sendPendingWelcomes = async () => {
       } catch (e) {
         console.error(`  ✗ Failed to welcome ${sub.phone}:`, e.message);
       }
+      await sleep(1000);
     }
   } catch (e) {
     console.error("Failed to fetch pending welcomes:", e.message);
@@ -357,6 +395,7 @@ const sendTeaserMessage = async () => {
       } catch (e) {
         console.error(`  ✗ Teaser failed for ${sub.phone}:`, e.message);
       }
+      await sleep(1000);
     }
     console.log(`Teaser sent to ${data.subscribers.length} subscribers`);
   } catch (e) {
