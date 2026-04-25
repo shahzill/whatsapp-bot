@@ -94,11 +94,10 @@ const buildReminderMessage = (games, dateLabel, sectionLabel, name) => {
   const isPersonal = sectionLabel.includes("Your");
 
   const header = isPersonal
-    ? `🏏 *Shaheen CC — Match Day Reminder*`
+    ? `🏏 *Schedule for ${name}*`
     : `📋 *Shaheen CC — Full Schedule*`;
 
   let msg = `${header}\n`;
-  if (name && isPersonal) msg += `_Schedule for ${name}_\n`;
   msg += `📅 ${dateLabel}\n\n`;
 
   games.forEach((game, i) => {
@@ -137,12 +136,10 @@ const buildTeaserMessage = (games, label, name) => {
   const umpiring = games.filter((g) => g.IsUmpiring);
 
   const header = isPersonal
-    ? `🏏 *Shaheen CC — Game Tomorrow!*`
+    ? `🏏 *${name} — Game Tomorrow!*`
     : `📋 *Shaheen CC — Games Tomorrow*`;
 
   let msg = `${header}\n`;
-  if (name && isPersonal) msg += `_Schedule for ${name}_\n`;
-  msg += `\n`;
 
   if (playing.length) {
     msg += `🏏 *${playing.length} game${playing.length > 1 ? "s" : ""}* scheduled`;
