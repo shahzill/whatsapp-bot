@@ -22,6 +22,8 @@ let sock;
 let isReady = false;
 let pairingRequested = false;
 let lastPairingCode = null;
+// Maps @lid JID -> @s.whatsapp.net JID so STOP from multi-device accounts can be resolved
+const lidToPhoneJid = {};
 
 // Railway requires an HTTP server
 const app = express();
@@ -185,6 +187,15 @@ const connect = async () => {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // Build LID → phone JID map so STOP messages from @lid senders can be resolved
+  sock.ev.on("contacts.upsert", (contacts) => {
+    for (const c of contacts) {
+      if (c.lid && c.id) {
+        lidToPhoneJid[c.lid] = c.id;
+      }
+    }
+  });
+
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
@@ -230,8 +241,16 @@ const connect = async () => {
       if (body.trim().toUpperCase() !== "STOP") continue;
 
       const jid = msg.key.remoteJid;
-      const phone = "+" + jid.replace("@s.whatsapp.net", "").split(":")[0];
-      console.log("[STOP] jid:", jid, "→ phone:", phone);
+      // @lid is a WhatsApp Linked ID, not a phone — resolve to phone JID via contact map
+      const resolvedJid = jid.endsWith("@lid")
+        ? (lidToPhoneJid[jid] || null)
+        : jid;
+      if (!resolvedJid || resolvedJid.endsWith("@lid")) {
+        console.log("[STOP] Could not resolve LID to phone JID:", jid);
+        continue;
+      }
+      const phone = "+" + resolvedJid.replace("@s.whatsapp.net", "").split(":")[0];
+      console.log("[STOP] jid:", jid, "→ resolvedJid:", resolvedJid, "→ phone:", phone);
       const unsubRes = await axios
         .post(`${API_BASE}/api/whatsapp/unsubscribe`, { phone })
         .catch((e) => { console.log("[STOP] unsubscribe error:", e.response?.data || e.message); });
