@@ -150,7 +150,14 @@ const connect = async () => {
       isReady = false;
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log(`❌ Disconnected (${code})`);
-      if (code !== DisconnectReason.loggedOut) {
+      if (
+        code === DisconnectReason.loggedOut ||
+        code === DisconnectReason.connectionReplaced
+      ) {
+        console.log(
+          "Session ended permanently — close WhatsApp Web in any browsers and restart the bot.",
+        );
+      } else {
         setTimeout(connect, 5000);
       }
     }
@@ -255,7 +262,7 @@ cron.schedule("00 07 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
-cron.schedule("06 23 * * *", sendTeaserMessage, {
+cron.schedule("13 23 * * *", sendTeaserMessage, {
   timezone: "America/Edmonton",
 });
 
