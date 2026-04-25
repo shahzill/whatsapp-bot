@@ -183,6 +183,7 @@ const connect = async () => {
     printQRInTerminal: false,
     logger: silentLogger,
     browser: Browsers.macOS("Chrome"),
+    getMessage: async () => ({ conversation: "" }),
   });
 
   sock.ev.on("creds.update", saveCreds);
