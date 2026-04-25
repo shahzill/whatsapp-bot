@@ -260,7 +260,7 @@ const sendTeaserMessage = async () => {
   }
 };
 
-cron.schedule("54 09 * * *", sendDailyReminders, {
+cron.schedule("00 07 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
