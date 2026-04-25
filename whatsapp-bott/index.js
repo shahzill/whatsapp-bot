@@ -231,9 +231,11 @@ const connect = async () => {
 
       const jid = msg.key.remoteJid;
       const phone = "+" + jid.replace("@s.whatsapp.net", "").split(":")[0];
-      await axios
+      console.log("[STOP] jid:", jid, "→ phone:", phone);
+      const unsubRes = await axios
         .post(`${API_BASE}/api/whatsapp/unsubscribe`, { phone })
-        .catch(() => {});
+        .catch((e) => { console.log("[STOP] unsubscribe error:", e.response?.data || e.message); });
+      console.log("[STOP] unsubscribe response:", unsubRes?.data);
       await sock
         .sendMessage(jid, {
           text: "You've been unsubscribed from Shaheen Cricket Club reminders.",
