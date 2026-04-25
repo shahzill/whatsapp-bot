@@ -60,10 +60,10 @@ const getOffset = (dateStr) => {
 const buildReminderMessage = (games, dateLabel) => {
   let msg = `🏏 *Shaheen Cricket Club*\n📅 *${dateLabel}*\n\n`;
   games.forEach((game) => {
-    const offset = getOffset(game.DateAndTime);
-    const time = new Date(
-      game.DateAndTime.replace(" ", "T") + offset,
-    ).toLocaleTimeString("en-CA", {
+    const normalized = game.DateAndTime.replace(" ", "T");
+    const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(normalized);
+    const dateStr = hasTimezone ? normalized : normalized + getOffset(game.DateAndTime);
+    const time = new Date(dateStr).toLocaleTimeString("en-CA", {
       timeZone: "America/Edmonton",
       hour: "2-digit",
       minute: "2-digit",
