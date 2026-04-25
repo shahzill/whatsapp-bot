@@ -1,0 +1,14 @@
+{
+  "name": "shaheen-whatsapp-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "axios": "^1.6.8",
+    "express": "^4.19.2",
+    "node-cron": "^4.2.1"
+  }
+}
