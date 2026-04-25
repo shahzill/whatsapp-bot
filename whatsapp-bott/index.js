@@ -13,7 +13,6 @@ const {
 const cron = require("node-cron");
 const axios = require("axios");
 const express = require("express");
-const fs = require("fs");
 
 const API_BASE = "https://shaheensapi.shaheenccyyc.com";
 const API_KEY = "shaheen_qr_2026";
@@ -26,25 +25,7 @@ let lastPairingCode = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const STORE_PATH = "./wa_msg_store.json";
-let msgStore = {};
-try {
-  msgStore = JSON.parse(fs.readFileSync(STORE_PATH, "utf-8"));
-} catch {}
-
-let saveTimer = null;
-const scheduleSave = () => {
-  if (saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    const keys = Object.keys(msgStore);
-    if (keys.length > 1000)
-      keys.slice(0, keys.length - 1000).forEach((k) => delete msgStore[k]);
-    try {
-      fs.writeFileSync(STORE_PATH, JSON.stringify(msgStore));
-    } catch {}
-  }, 2000);
-};
+const msgStore = {};
 
 // Railway requires an HTTP server
 const app = express();
@@ -222,7 +203,6 @@ const connect = async () => {
     for (const msg of messages) {
       if (msg.key?.id && msg.message) {
         msgStore[msg.key.id] = msg.message;
-        scheduleSave();
       }
     }
   });
