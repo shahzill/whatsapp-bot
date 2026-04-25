@@ -92,14 +92,6 @@ const extractMatchup = (gameDetails) => {
   return match ? match[1].trim() : gameDetails;
 };
 
-const formatIcon = (format) => {
-  const f = format.toLowerCase();
-  if (f.includes("t20")) return "⚡";
-  if (f.includes("35")) return "🏏";
-  if (f.includes("weeknight")) return "🌙";
-  return "🏏";
-};
-
 const buildReminderMessage = (games, dateLabel, sectionLabel) => {
   const isPersonal = sectionLabel.includes("Your");
 
@@ -123,14 +115,14 @@ const buildReminderMessage = (games, dateLabel, sectionLabel) => {
       hour12: true,
     });
 
-    const icon = formatIcon(game.Format);
     const matchup = extractMatchup(game.GameDetails);
 
-    msg += `${icon} *${game.Format}*`;
+    msg += `*${game.Format}*`;
     if (game.IsUmpiring) msg += `  🟡 *(Umpiring)*`;
     msg += `\n`;
     msg += `${matchup}\n`;
-    msg += `📍 ${game.Venue}  ·  ⏰ ${time}\n`;
+    msg += `*Venue:* ${game.Venue}\n`;
+    msg += `*Time:* ${time}\n`;
 
     if (i < games.length - 1) msg += `\n`;
   });
@@ -160,6 +152,7 @@ const buildTeaserMessage = (games, label) => {
   }
 
   msg += `\nFull details will be sent tomorrow morning. Good luck! 🙌`;
+  msg += `\n\n_Unsubscribe: shaheenccyyc.com/unsubscribe_`;
   return msg;
 };
 
