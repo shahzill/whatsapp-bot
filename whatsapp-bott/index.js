@@ -57,8 +57,37 @@ const getOffset = (dateStr) => {
   return month >= 4 && month <= 10 ? "-06:00" : "-07:00";
 };
 
-const buildReminderMessage = (games, dateLabel) => {
-  let msg = `🏏 *Shaheen Cricket Club*\n📅 *${dateLabel}*\n\n`;
+// Convert phone to WhatsApp JID
+const toJid = (phone) => {
+  const cleaned = phone.replace(/\D/g, "");
+  return `${cleaned.length === 10 ? `1${cleaned}` : cleaned}@s.whatsapp.net`;
+};
+
+// Filter games to only those matching the subscriber's chosen team|format combos.
+// e.g. teamsStr = "Warriors|T20,Mavericks|35Overs"
+// Empty teamsStr = all games (backwards compat for old subscribers).
+const filterGamesBySubscriptions = (games, teamsStr) => {
+  if (!teamsStr || teamsStr.trim() === "") return games;
+  const combos = teamsStr
+    .split(",")
+    .map((c) => c.split("|").map((s) => s.trim().toLowerCase()))
+    .filter(([team, fmt]) => team && fmt);
+
+  return games.filter((g) =>
+    combos.some(([team, fmt]) => {
+      const teamMatch = g.GameDetails.toLowerCase().includes(team);
+      const fmtLower = g.Format.toLowerCase();
+      const fmtMatch =
+        fmt === "t20"       ? fmtLower.includes("t20") :
+        fmt === "35overs"   ? fmtLower.includes("35") :
+        /* weeknight */       fmtLower.includes("weeknight");
+      return teamMatch && fmtMatch;
+    })
+  );
+};
+
+const buildReminderMessage = (games, dateLabel, sectionLabel) => {
+  let msg = `🏏 *${sectionLabel}*\n📅 *${dateLabel}*\n\n`;
   games.forEach((game) => {
     const stripped = game.DateAndTime.replace(" ", "T").replace(
       /Z$|[+-]\d{2}:\d{2}$/,
@@ -80,6 +109,21 @@ const buildReminderMessage = (games, dateLabel) => {
   return msg;
 };
 
+const buildTeaserMessage = (games, label) => {
+  const playingGames = games.filter((g) => !g.IsUmpiring);
+  const umpiringGames = games.filter((g) => g.IsUmpiring);
+  const lines = [];
+  if (playingGames.length)
+    lines.push(
+      `🏏 *${playingGames.length} game${playingGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
+    );
+  if (umpiringGames.length)
+    lines.push(
+      `🟡 *${umpiringGames.length} umpiring${umpiringGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
+    );
+  return `*Shaheen Cricket Club* 🏏\n*${label}*\n\n${lines.join("\n")}`;
+};
+
 const sendDailyReminders = async () => {
   if (!isReady) {
     console.log("WhatsApp not ready — skipping reminders");
@@ -96,15 +140,28 @@ const sendDailyReminders = async () => {
       return;
     }
 
-    const message = buildReminderMessage(games, dateLabel);
-    console.log(`Sending reminders to ${subscribers.length} subscribers...`);
+    console.log(`Sending daily reminders to ${subscribers.length} subscribers...`);
 
     for (const sub of subscribers) {
-      const cleaned = sub.phone.replace(/\D/g, "");
-      const jid = `${cleaned.length === 10 ? `1${cleaned}` : cleaned}@s.whatsapp.net`;
+      const jid = toJid(sub.phone);
+      const myGames = filterGamesBySubscriptions(games, sub.teams);
+
       try {
-        await sock.sendMessage(jid, { text: message });
-        console.log(`  ✓ Sent to ${sub.phone}`);
+        // Daily2: subscriber's teams only
+        if (myGames.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildReminderMessage(myGames, dateLabel, "Your Teams — Shaheen CC"),
+          });
+          console.log(`  ✓ Daily (your teams) sent to ${sub.phone}`);
+        }
+
+        // Daily1: all games, only if toggle is on
+        if (sub.all_games && games.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildReminderMessage(games, dateLabel, "All Shaheen Games"),
+          });
+          console.log(`  ✓ Daily (all games) sent to ${sub.phone}`);
+        }
       } catch (e) {
         console.error(`  ✗ Failed to send to ${sub.phone}:`, e.message);
       }
@@ -193,8 +250,7 @@ const sendPendingWelcomes = async () => {
       `${API_BASE}/api/whatsapp/pending-welcome?key=${API_KEY}`,
     );
     for (const sub of pending) {
-      const cleaned = sub.phone.replace(/\D/g, "");
-      const jid = `${cleaned.length === 10 ? `1${cleaned}` : cleaned}@s.whatsapp.net`;
+      const jid = toJid(sub.phone);
       try {
         await sock.sendMessage(jid, {
           text: `✅ You're subscribed to Shaheen Cricket Club game reminders! You'll get a message on match days.\n\nReply *STOP* at any time to unsubscribe.`,
@@ -230,26 +286,26 @@ const sendTeaserMessage = async () => {
     );
     if (!data.games.length) return;
 
-    const playingGames = data.games.filter((g) => !g.IsUmpiring);
-    const umpiringGames = data.games.filter((g) => g.IsUmpiring);
-
-    const lines = [];
-    if (playingGames.length)
-      lines.push(
-        `🏏 *${playingGames.length} game${playingGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
-      );
-    if (umpiringGames.length)
-      lines.push(
-        `🟡 *${umpiringGames.length} umpiring${umpiringGames.length > 1 ? "s" : ""} tomorrow* — be ready!`,
-      );
-
-    const message = `*Shaheen Cricket Club* 🏏\n\n${lines.join("\n")}`;
+    const games = data.games;
 
     for (const sub of data.subscribers) {
-      const cleaned = sub.phone.replace(/\D/g, "");
-      const jid = `${cleaned.length === 10 ? `1${cleaned}` : cleaned}@s.whatsapp.net`;
+      const jid = toJid(sub.phone);
+      const myGames = filterGamesBySubscriptions(games, sub.teams);
+
       try {
-        await sock.sendMessage(jid, { text: message });
+        // Teaser2: subscriber's teams only
+        if (myGames.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildTeaserMessage(myGames, "Your Teams"),
+          });
+        }
+
+        // Teaser1: all games, only if toggle is on
+        if (sub.all_games && games.length > 0) {
+          await sock.sendMessage(jid, {
+            text: buildTeaserMessage(games, "All Shaheen Games"),
+          });
+        }
       } catch (e) {
         console.error(`  ✗ Teaser failed for ${sub.phone}:`, e.message);
       }
