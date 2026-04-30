@@ -412,7 +412,7 @@ cron.schedule("00 07 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
-cron.schedule("25 18 * * *", sendTeaserMessage, {
+cron.schedule("10 16 * * *", sendTeaserMessage, {
   timezone: "America/Edmonton",
 });
 
