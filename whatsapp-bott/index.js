@@ -123,6 +123,26 @@ const buildReminderMessage = (games, dateLabel, sectionLabel, name) => {
     msg += `*Venue:* ${game.Venue}\n`;
     msg += `*Time:* ${time}\n`;
 
+    let playing11 = null;
+    try {
+      playing11 = game.Playing11 ? JSON.parse(game.Playing11) : null;
+    } catch {}
+    if (playing11 && playing11.players && playing11.players.length === 11) {
+      msg += `\n*Playing XI:*\n`;
+      playing11.players.forEach((p, idx) => {
+        msg += `${idx + 1}. ${p}\n`;
+      });
+      const reserves = (playing11.reserves || []).filter((r) => r && r.trim());
+      if (reserves.length) {
+        msg += `\n*Reserves:*\n`;
+        reserves.forEach((p, idx) => {
+          msg += `${playing11.players.length + idx + 1}. ${p}\n`;
+        });
+      }
+    } else {
+      msg += `\n_No playing 11 found. The captain was lazy._\n`;
+    }
+
     if (i < games.length - 1) msg += `\n`;
   });
 
@@ -388,11 +408,11 @@ const sendTeaserMessage = async () => {
   } catch {}
 };
 
-cron.schedule("00 07 * * *", sendDailyReminders, {
+cron.schedule("25 18 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
-cron.schedule("00 20 * * *", sendTeaserMessage, {
+cron.schedule("25 18 * * *", sendTeaserMessage, {
   timezone: "America/Edmonton",
 });
 
