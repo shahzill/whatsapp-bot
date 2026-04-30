@@ -408,7 +408,7 @@ const sendTeaserMessage = async () => {
   } catch {}
 };
 
-cron.schedule("28 18 * * *", sendDailyReminders, {
+cron.schedule("00 07 * * *", sendDailyReminders, {
   timezone: "America/Edmonton",
 });
 
