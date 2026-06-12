@@ -214,7 +214,7 @@ const sendDailyReminders = async () => {
       } catch (e) {
         console.error(`  ✗ Failed to send to ${sub.phone}:`, e.message);
       }
-      await sleep(1000);
+      await sleep(4000);
     }
   } catch {}
 };
@@ -259,10 +259,11 @@ const connect = async () => {
       isReady = false;
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log(`❌ Disconnected (${code})`);
-      if (
-        code !== DisconnectReason.loggedOut &&
-        code !== DisconnectReason.connectionReplaced
-      ) {
+      if (code === DisconnectReason.loggedOut) {
+        const fs = require("fs");
+        fs.rmSync("./wa_session", { recursive: true, force: true });
+        console.log("Session cleared — restart the process and re-pair.");
+      } else if (code !== DisconnectReason.connectionReplaced) {
         setTimeout(connect, 5000);
       }
     }
@@ -360,7 +361,7 @@ const sendPendingWelcomes = async () => {
       } catch (e) {
         console.error(`  ✗ Failed to welcome ${sub.phone}:`, e.message);
       }
-      await sleep(1000);
+      await sleep(4000);
     }
   } catch (e) {
     console.error("Failed to fetch pending welcomes:", e.message);
@@ -403,7 +404,7 @@ const sendTeaserMessage = async () => {
       } catch (e) {
         console.error(`  ✗ Teaser failed for ${sub.phone}:`, e.message);
       }
-      await sleep(1000);
+      await sleep(4000);
     }
   } catch {}
 };
